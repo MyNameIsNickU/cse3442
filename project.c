@@ -41,6 +41,9 @@
 #define PUSH_BUTTON (*((volatile uint32_t *)(0x42000000 + (0x400253FC-0x40000000)*32 + 4*4))) // PF4
 #define SLEEP_PIN  (*((volatile uint32_t *)(0x42000000 + (0x400053FC-0x40000000)*32 + 6*4))) // PB6
 
+#define TRIGGER_PIN (*((volatile uint32_t *)(0x42000000 + (0x400243FC-0x40000000)*32 + 1*4))) // PE1
+#define ECHO_PIN    (*((volatile uint32_t *)(0x42000000 + (0x400243FC-0x40000000)*32 + 3*4))) // PE3
+
 // Masks
 #define RED_LED_MASK 2
 #define BLUE_LED_MASK 4
@@ -60,6 +63,8 @@
 #define FREQ_IN_MASK_C4 16
 
 // PortE masks
+#define TRIGGER_MASK 2
+#define ECHO_MASK 8
 #define BLUE_BL_LED_MASK 16
 #define GREEN_BL_LED_MASK 32
 
@@ -101,7 +106,7 @@ void configTimers()
     WTIMER0_TAV_R = 0;
 	WTIMER1_TAV_R = 0;	// zero counter for first period
     WTIMER0_CTL_R |= TIMER_CTL_TAEN;
-	WTIMER1_CTL_R |= TIMER_CTL_TAEN;    
+	WTIMER1_CTL_R |= TIMER_CTL_TAEN;
 }
 
 // Initialize Hardware
@@ -115,6 +120,16 @@ void initHw()
     SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R1 | SYSCTL_RCGCGPIO_R2 | SYSCTL_RCGCGPIO_R4 | SYSCTL_RCGCGPIO_R5;
     SYSCTL_RCGCPWM_R |= SYSCTL_RCGCPWM_R0;
     SYSCTL_RCGCWTIMER_R |= SYSCTL_RCGCWTIMER_R1 | SYSCTL_RCGCWTIMER_R0;
+	SYSCTL_RCGCTIMER_R |= SYSCTL_RCGCTIMER_R1;
+	_delay_cycles(3);
+	
+	TIMER1_CTL_R &= ~TIMER_CTL_TAEN;
+	TIMER1_CFG_R = 0;
+	TIMER1_TAMR_R = 0x2;
+	TIMER1_TAMR_R |= TIMER1_TAMR_TACDIR;
+	TIMER1_TAV_R = 0;
+	
+	
     _delay_cycles(3);
 
     initPWM();
@@ -135,6 +150,11 @@ void initHw()
     GPIO_PORTC_DEN_R |= FREQ_IN_MASK_C6 | FREQ_IN_MASK_C4;
 	
 	configTimers();
+	
+	GPIO_PORTE_DIR_R |= TRIGGER_MASK;
+	GPIO_PORTE_DIR_R &= ~ECHO_MASK;
+	GPIO_PORTE_DR2R_R |= TRIGGER_MASK;
+	GPIO_PORTE_DEN_R |= TRIGGER_MASK | ECHO_MASK;
 
 }
 
@@ -593,6 +613,29 @@ void instruct_delete(instruction * arr, uint8_t remove, int8_t index, bool max)
     return;
 }
 
+void wait_distance( uint32_t input )
+{
+	uint32_t dist;
+	
+	BLUE_LED = 1;
+	
+	while(input < dist)
+	{
+		TIMER1_TAV_R = 0;
+		TRIGGER_PIN = 1;
+		waitMicrosecond(10);
+		TRIGGER_PIN = 0;
+	
+		TIMER1_CTL_R |= TIMER_CTL_TAEN;
+		while( ECHO_PIN );
+		TIMER1_CTL_R &= ~TIMER_CTL_TAEN;
+		dist = TIMER1_TAV_R / 1000000 / 58;
+	}
+	
+	BLUE_LED = 0;
+	return;
+}
+
 //-----------------------------------------------------------------------------
 // Main
 //-----------------------------------------------------------------------------
@@ -608,6 +651,8 @@ int main(void)
     initUart0();
     setUart0BaudRate(115200, 40e6);
     SLEEP_PIN = 1;
+	
+	wait_distance(15);
 	
 	uint8_t i;
 
