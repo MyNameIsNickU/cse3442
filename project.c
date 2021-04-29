@@ -282,7 +282,7 @@ bool isCommand(USER_DATA* data, char strCommand[], uint8_t minArguments)
 
 void rb_forward( int16_t dist )
 {
-    uint16_t ticks = 55 * dist / 30;
+    uint16_t ticks = 40 * dist / 30;
 
 	// Calculate distance in centimeters.
     PWM0_1_CMPA_R = 0;
@@ -291,17 +291,18 @@ void rb_forward( int16_t dist )
     PWM0_2_CMPB_R = 0;
     GREEN_LED = 1;
 
-    if(dist != -1)
+    if(dist == -1)
     {
-        PWM0_1_CMPB_R = 0;
-        PWM0_2_CMPA_R = 0;
-        GREEN_LED = 0;
+        return;
     }
     else
     {
         WTIMER0_TAV_R = 0;
         WTIMER1_TAV_R = 0;
-        while(WTIMER0_TAV_R != ticks || WTIMER1_TAV_R != ticks);
+        while(WTIMER0_TAV_R < ticks || WTIMER1_TAV_R < ticks);
+        GREEN_LED = 0;
+        PWM0_1_CMPB_R = 0;
+        PWM0_2_CMPA_R = 0;
     }
 
 
@@ -313,7 +314,7 @@ void rb_forward( int16_t dist )
 
 void rb_reverse( int16_t dist )
 {
-    uint16_t ticks = 55 * dist / 30;
+    uint16_t ticks = 40 * dist / 30;
 
 	// Calculate distance in centimeters.
     PWM0_1_CMPA_R = 1001;
@@ -324,24 +325,25 @@ void rb_reverse( int16_t dist )
 
     //waitMicrosecond(1000000);
 
-    if(dist != -1)
+    if(dist == -1)
     {
-        PWM0_1_CMPA_R = 0;
-        PWM0_2_CMPB_R = 0;
-        GREEN_LED = 0;
+        return;
     }
     else
     {
         WTIMER0_TAV_R = 0;
         WTIMER1_TAV_R = 0;
-        while(WTIMER0_TAV_R != ticks || WTIMER1_TAV_R != ticks);
+        while(WTIMER0_TAV_R < ticks || WTIMER1_TAV_R < ticks);
+        GREEN_LED = 0;
+        PWM0_1_CMPA_R = 0;
+        PWM0_2_CMPB_R = 0;
     }
     return;
 }
 
 void rb_cwRotate( int16_t angle )
 {
-    uint16_t ticks = 56 * dist / 360;
+    uint16_t ticks = 20 * angle / 90;
 
     PWM0_1_CMPA_R = 1001;
     PWM0_1_CMPB_R = 0;
@@ -351,7 +353,7 @@ void rb_cwRotate( int16_t angle )
     //waitMicrosecond(1000000);
     WTIMER0_TAV_R = 0;
     WTIMER1_TAV_R = 0;
-    while(WTIMER0_TAV_R != ticks || WTIMER1_TAV_R != ticks);
+    while(WTIMER0_TAV_R < ticks || WTIMER1_TAV_R < ticks);
 
     PWM0_1_CMPA_R = 0;
     PWM0_2_CMPA_R = 0;
@@ -360,7 +362,7 @@ void rb_cwRotate( int16_t angle )
 
 void rb_ccwRotate( int16_t angle )
 {
-    uint16_t ticks = 56 * dist / 360;
+    uint16_t ticks = 45 * angle / 180;
 
     PWM0_1_CMPA_R = 0;
     PWM0_1_CMPB_R = 1001;
@@ -370,7 +372,7 @@ void rb_ccwRotate( int16_t angle )
     //waitMicrosecond(1000000);
     WTIMER0_TAV_R = 0;
     WTIMER1_TAV_R = 0;
-    while(WTIMER0_TAV_R != ticks || WTIMER1_TAV_R != ticks);
+    while(WTIMER0_TAV_R < ticks || WTIMER1_TAV_R < ticks);
 
     PWM0_1_CMPB_R = 0;
     PWM0_2_CMPB_R = 0;
@@ -734,6 +736,9 @@ int main(void)
 		    inst_index = inst_index % MAX_INSTRUCTIONS;
 		    inst_max = true;
 		}
+		char s[5];
+		sprintf(s, "%d %d\n", WTIMER0_TAV_R, WTIMER1_TAV_R);
+	    putsUart0(s);
 		data_flush(&data);
     }
 }
