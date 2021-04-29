@@ -36,15 +36,16 @@
 
 // Bitbanding Aliases
 #define RED_LED      (*((volatile uint32_t *)(0x42000000 + (0x400253FC-0x40000000)*32 + 1*4))) // PF1
-#define GREEN_LED    (*((volatile uint32_t *)(0x42000000 + (0x400253FC-0x40000000)*32 + 3*4))) // PF2
-#define BLUE_LED     (*((volatile uint32_t *)(0x42000000 + (0x400253FC-0x40000000)*32 + 2*4))) // PF3
+#define GREEN_LED    (*((volatile uint32_t *)(0x42000000 + (0x400253FC-0x40000000)*32 + 3*4))) // PF3
+#define BLUE_LED     (*((volatile uint32_t *)(0x42000000 + (0x400253FC-0x40000000)*32 + 2*4))) // PF2
 #define PUSH_BUTTON (*((volatile uint32_t *)(0x42000000 + (0x400253FC-0x40000000)*32 + 4*4))) // PF4
 #define SLEEP_PIN  (*((volatile uint32_t *)(0x42000000 + (0x400053FC-0x40000000)*32 + 6*4))) // PB6
 
 // Masks
-#define BLUE_LED_MASK 4
 #define RED_LED_MASK 2
+#define BLUE_LED_MASK 4
 #define GREEN_LED_MASK 8
+#define PUSH_BUTTON_MASK 16
 
 #define MAX_CHARS 80
 #define MAX_FIELDS 5
@@ -63,7 +64,7 @@
 #define GREEN_BL_LED_MASK 32
 
 // PortF masks
-#define PUSH_BUTTON_MASK 16
+
 
 typedef struct _USER_DATA
 {
@@ -91,13 +92,13 @@ void configTimers()
 	WTIMER1_CTL_R &= ~TIMER_CTL_TAEN;	// turn-off counter before reconfiguring
     WTIMER0_CFG_R = 4;    
 	WTIMER1_CFG_R = 4;	// configure as 32-bit counter (A only)
-    WTIMER0_TAMR_R = TIMER_TAMR_TAMR_CAP;                     // configure for count up, capture
+    WTIMER0_TAMR_R = TIMER_TAMR_TAMR_CAP | TIMER_TAMR_TACDIR;  // configure for count up, capture
 	WTIMER1_TAMR_R = TIMER_TAMR_TAMR_CAP | TIMER_TAMR_TACDIR; // configure for count up, capture
     WTIMER0_TAMR_R &= ~TIMER_TAMR_TACMR;
 	WTIMER1_TAMR_R &= ~TIMER_TAMR_TACMR;	// configure edge-count
     WTIMER0_IMR_R = 0;
 	WTIMER1_IMR_R = 0;	// turn-off interrupts
-    WTIMER0_TAV_R = 40000000;
+    WTIMER0_TAV_R = 0;
 	WTIMER1_TAV_R = 0;	// zero counter for first period
     WTIMER0_CTL_R |= TIMER_CTL_TAEN;
 	WTIMER1_CTL_R |= TIMER_CTL_TAEN;    
@@ -118,12 +119,11 @@ void initHw()
 
     initPWM();
 
+    // PF1-4 for LEDs and Push Button
     GPIO_PORTF_DIR_R |= BLUE_LED_MASK | RED_LED_MASK | GREEN_LED_MASK;
     GPIO_PORTF_DIR_R &= ~PUSH_BUTTON_MASK;
     GPIO_PORTF_PUR_R |= PUSH_BUTTON_MASK;
-
     GPIO_PORTF_DR2R_R |= BLUE_LED_MASK | RED_LED_MASK | GREEN_LED_MASK;
-
     GPIO_PORTF_DEN_R |= BLUE_LED_MASK | RED_LED_MASK | GREEN_LED_MASK | PUSH_BUTTON_MASK;
 
 
@@ -282,6 +282,8 @@ bool isCommand(USER_DATA* data, char strCommand[], uint8_t minArguments)
 
 void rb_forward( int16_t dist )
 {
+    uint16_t ticks = 55 * dist / 30;
+
 	// Calculate distance in centimeters.
     PWM0_1_CMPA_R = 0;
     PWM0_1_CMPB_R = 1001;
@@ -289,19 +291,30 @@ void rb_forward( int16_t dist )
     PWM0_2_CMPB_R = 0;
     GREEN_LED = 1;
 
-    waitMicrosecond(1000000);
-
     if(dist != -1)
     {
         PWM0_1_CMPB_R = 0;
         PWM0_2_CMPA_R = 0;
         GREEN_LED = 0;
     }
+    else
+    {
+        WTIMER0_TAV_R = 0;
+        WTIMER1_TAV_R = 0;
+        while(WTIMER0_TAV_R != ticks || WTIMER1_TAV_R != ticks);
+    }
+
+
+    //waitMicrosecond(1000000);
+
+
 	return;
 }
 
 void rb_reverse( int16_t dist )
 {
+    uint16_t ticks = 55 * dist / 30;
+
 	// Calculate distance in centimeters.
     PWM0_1_CMPA_R = 1001;
     PWM0_1_CMPB_R = 0;
@@ -309,7 +322,7 @@ void rb_reverse( int16_t dist )
     PWM0_2_CMPB_R = 996;
     GREEN_LED = 1;
 
-    waitMicrosecond(1000000);
+    //waitMicrosecond(1000000);
 
     if(dist != -1)
     {
@@ -317,17 +330,28 @@ void rb_reverse( int16_t dist )
         PWM0_2_CMPB_R = 0;
         GREEN_LED = 0;
     }
+    else
+    {
+        WTIMER0_TAV_R = 0;
+        WTIMER1_TAV_R = 0;
+        while(WTIMER0_TAV_R != ticks || WTIMER1_TAV_R != ticks);
+    }
     return;
 }
 
 void rb_cwRotate( int16_t angle )
 {
+    uint16_t ticks = 56 * dist / 360;
+
     PWM0_1_CMPA_R = 1001;
     PWM0_1_CMPB_R = 0;
     PWM0_2_CMPA_R = 996;
     PWM0_2_CMPB_R = 0;
 
-    waitMicrosecond(1000000);
+    //waitMicrosecond(1000000);
+    WTIMER0_TAV_R = 0;
+    WTIMER1_TAV_R = 0;
+    while(WTIMER0_TAV_R != ticks || WTIMER1_TAV_R != ticks);
 
     PWM0_1_CMPA_R = 0;
     PWM0_2_CMPA_R = 0;
@@ -336,12 +360,17 @@ void rb_cwRotate( int16_t angle )
 
 void rb_ccwRotate( int16_t angle )
 {
+    uint16_t ticks = 56 * dist / 360;
+
     PWM0_1_CMPA_R = 0;
     PWM0_1_CMPB_R = 1001;
     PWM0_2_CMPA_R = 0;
     PWM0_2_CMPB_R = 996;
 
-    waitMicrosecond(1000000);
+    //waitMicrosecond(1000000);
+    WTIMER0_TAV_R = 0;
+    WTIMER1_TAV_R = 0;
+    while(WTIMER0_TAV_R != ticks || WTIMER1_TAV_R != ticks);
 
     PWM0_1_CMPB_R = 0;
     PWM0_2_CMPB_R = 0;
