@@ -84,7 +84,8 @@ char fieldType[MAX_FIELDS];
 typedef struct _instruction
 {
 uint8_t command;
-uint16_t argument;	
+uint8_t subcommand;
+uint16_t argument;
 } instruction;
 
 //-----------------------------------------------------------------------------
@@ -153,8 +154,7 @@ void initHw()
 	
 	GPIO_PORTE_DIR_R |= TRIGGER_MASK;
 	GPIO_PORTE_DIR_R &= ~ECHO_MASK;
-	GPIO_PORTE_PUR_R |= ECHO_MASK;
-	GPIO_PORTE_DR2R_R |= TRIGGER_MASK;
+	GPIO_PORTE_DR2R_R |= TRIGGER_MASK | ECHO_MASK;
 	GPIO_PORTE_DEN_R |= TRIGGER_MASK | ECHO_MASK;
 
 }
@@ -400,14 +400,55 @@ void rb_ccwRotate( int16_t angle )
 	return;
 }	
 
-void rb_wait( char * device )
+void wait_distance( uint32_t input )
+{
+    uint32_t dist;
+    //char s[5];
+
+    RED_LED = 1;
+    ECHO_PIN = 0;
+
+    do
+    {
+        TIMER1_TAV_R = 0;
+
+        TRIGGER_PIN = 1;
+        waitMicrosecond(20);
+        TRIGGER_PIN = 0;
+
+        while( !ECHO_PIN );
+        TIMER1_CTL_R |= TIMER_CTL_TAEN;
+
+        while( ECHO_PIN );
+        TIMER1_CTL_R &= ~TIMER_CTL_TAEN;
+        dist = TIMER1_TAV_R  * 0.025 / 58;
+        //sprintf(s, "%d < %d\n", dist, input);
+        //putsUart0(s);
+        //waitMicrosecond(1000000);
+
+    } while( dist > input );
+
+    BLUE_LED = 1;
+    GREEN_LED = 1;
+    waitMicrosecond(1000000);
+    RED_LED = 0;
+    GREEN_LED = 0;
+    BLUE_LED = 0;
+    return;
+}
+
+void rb_wait( uint16_t mode, uint32_t sub )
 {
     RED_LED = 1;
-    SLEEP_PIN = 0;
-    if( strcomp(device, "pb") )
+    if(mode == 0x1111)
     {
+        SLEEP_PIN = 0;
         while(PUSH_BUTTON);
         SLEEP_PIN = 1;
+    }
+    else if(mode == 0x2222)
+    {
+        wait_distance(sub);
     }
     RED_LED = 0;
 	return;
@@ -614,38 +655,32 @@ void instruct_delete(instruction * arr, uint8_t remove, int8_t index, bool max)
     return;
 }
 
-void wait_distance( uint32_t input )
+void rb_run( instruction instruct )
 {
-	uint32_t dist;
-	
-	RED_LED = 1;
-	ECHO_PIN = 0;
-
-	do
-	{
-	    TIMER1_TAV_R = 0;
-
-		TRIGGER_PIN = 1;
-		waitMicrosecond(20);
-		TRIGGER_PIN = 0;
-
-		while( ECHO_PIN == 0 );
-		TIMER1_CTL_R |= TIMER_CTL_TAEN;
-
-		while( ECHO_PIN )
-		TIMER1_CTL_R &= ~TIMER_CTL_TAEN;
-		dist = TIMER1_TAV_R / 1000000 / 58;
-	} while(input < dist);
-	
-	char s[5];
-	sprintf(s, "%d\n", dist);
-	putsUart0(s);
-	BLUE_LED = 1;
-	GREEN_LED = 1;
-	waitMicrosecond(1000000);
-	RED_LED = 0;
-	GREEN_LED = 0;
-	BLUE_LED = 0;
+	switch(instruct.command)
+    {
+    case 0:
+        rb_forward( instruct.argument );
+        break;
+    case 1:
+        rb_reverse( instruct.argument );
+        break;
+    case 2:
+        rb_cwRotate( instruct.argument );
+        break;
+    case 3:
+        rb_ccwRotate( instruct.argument ); 
+        break;
+    case 4:
+        rb_wait( instruct.argument, instruct.subcommand );
+        break;
+    case 5:
+        rb_pause( instruct.argument );
+        break;
+    case 6:
+        rb_stop();
+        break;
+    }
 	return;
 }
 
@@ -654,7 +689,7 @@ void wait_distance( uint32_t input )
 //-----------------------------------------------------------------------------
 
 int main(void)
-{
+    {
     USER_DATA data;
     instruction inst_arr[MAX_INSTRUCTIONS];
     int8_t inst_index = 0;
@@ -664,8 +699,6 @@ int main(void)
     initUart0();
     setUart0BaudRate(115200, 40e6);
     SLEEP_PIN = 1;
-	
-	wait_distance(15);
 	
 	uint8_t i;
 
@@ -699,7 +732,7 @@ int main(void)
                 inst_arr[inst_index++].argument = 0xFFFF;
             else
                 inst_arr[inst_index++].argument = getFieldInteger(&data, 1);
-			rb_forward( getFieldInteger(&data, 1) );
+			//rb_forward( getFieldInteger(&data, 1) );
 		}
 		
 		if( isCommand(&data, "reverse", 2) )
@@ -709,7 +742,7 @@ int main(void)
 		        inst_arr[inst_index++].argument = 0xFFFF;
 		    else
 		        inst_arr[inst_index++].argument = getFieldInteger(&data, 1);
-			rb_reverse( getFieldInteger(&data, 1) );
+			//rb_reverse( getFieldInteger(&data, 1) );
 		}
 		
 		if( isCommand(&data, "cw", 2) )
@@ -719,7 +752,7 @@ int main(void)
 		        inst_arr[inst_index++].argument = 0xFFFF;
 		    else
 		        inst_arr[inst_index++].argument = getFieldInteger(&data, 1);
-			rb_cwRotate( getFieldInteger(&data, 1) );
+			//rb_cwRotate( getFieldInteger(&data, 1) );
 		}
 		
 		if( isCommand(&data, "ccw", 2) )
@@ -729,31 +762,39 @@ int main(void)
 		        inst_arr[inst_index++].argument = 0xFFFF;
 		    else
 		        inst_arr[inst_index++].argument = getFieldInteger(&data, 1);
-			rb_ccwRotate( getFieldInteger(&data, 1) );
+			//rb_ccwRotate( getFieldInteger(&data, 1) );
 		}
 		
 		if( isCommand(&data, "wait", 2) )
 		{
 		    inst_arr[inst_index].command = 4;
 		    if( strcomp(getFieldString(&data, 1), "pb") )
-		        inst_arr[inst_index++].argument = 0x1111;
+		    {
+		        inst_arr[inst_index].argument = 0x1111;
+		        inst_arr[inst_index++].subcommand = 0;
+		    }
+		    else if( strcomp(getFieldString(&data, 1), "distance") )
+		    {
+		        inst_arr[inst_index].argument = 0x2222;
+		        inst_arr[inst_index++].subcommand = getFieldInteger(&data, 2);
+		    }
 		    else
 		        inst_arr[inst_index++].argument = 0xFFFF;
-			rb_wait( getFieldString(&data, 1) );
+			//rb_wait( inst_arr[inst_index - 1].argument, inst_arr[inst_index - 1].subcommand );
 		}
 		
 		if( isCommand(&data, "pause", 2) )
 		{
 		    inst_arr[inst_index].command = 5;
 		    inst_arr[inst_index++].argument = getFieldInteger(&data, 1);
-			rb_pause( getFieldInteger(&data, 1) );
+			//rb_pause( getFieldInteger(&data, 1) );
 		}
 		
 		if( isCommand(&data, "stop", 1) )
 		{
 		    inst_arr[inst_index].command = 6;
 		    inst_arr[inst_index++].argument = getFieldInteger(&data, 1);
-			rb_stop();
+			//rb_stop();
 		}
 
 		if( isCommand(&data, "list", 1) )
@@ -788,15 +829,22 @@ int main(void)
 		        inst_max = false;
 		    }
 		}
+		
+		if( isCommand(&data, "run", 1) )
+		{
+			if(inst_max)
+		        for(i = 0; i < MAX_INSTRUCTIONS; i++)
+		            rb_run( inst_arr[i] );
+		    else
+		        for(i = 0; i < inst_index; i++)
+		            rb_run( inst_arr[i] );
+		}
 
 		if(inst_index % MAX_INSTRUCTIONS == 0)
 		{
 		    inst_index = inst_index % MAX_INSTRUCTIONS;
 		    inst_max = true;
 		}
-		char s[5];
-		sprintf(s, "%d %d\n", WTIMER0_TAV_R, WTIMER1_TAV_R);
-	    putsUart0(s);
 		data_flush(&data);
     }
 }
