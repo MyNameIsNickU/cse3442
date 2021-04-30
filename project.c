@@ -79,7 +79,7 @@ uint8_t fieldPosition[MAX_FIELDS];
 char fieldType[MAX_FIELDS];
 } USER_DATA;
 
-#define MAX_INSTRUCTIONS 5
+#define MAX_INSTRUCTIONS 10
 
 typedef struct _instruction
 {
@@ -419,7 +419,19 @@ void wait_distance( uint32_t input )
         while( !ECHO_PIN );
         TIMER1_CTL_R |= TIMER_CTL_TAEN;
 
-        while( ECHO_PIN );
+        while( ECHO_PIN )
+        {
+            if(TIMER1_TAV_R % 100000 == 0)
+            {
+                BLUE_LED = 0;
+                GREEN_LED = 0;
+            }
+            else
+            {
+                BLUE_LED = 1;
+                GREEN_LED = 1;
+            }
+        }
         TIMER1_CTL_R &= ~TIMER_CTL_TAEN;
         dist = TIMER1_TAV_R  * 0.025 / 58;
         //sprintf(s, "%d < %d\n", dist, input);
@@ -430,7 +442,7 @@ void wait_distance( uint32_t input )
 
     BLUE_LED = 1;
     GREEN_LED = 1;
-    waitMicrosecond(1000000);
+    //waitMicrosecond(1000000);
     RED_LED = 0;
     GREEN_LED = 0;
     BLUE_LED = 0;
@@ -476,12 +488,18 @@ void comm2str(instruction instruct, int index)
     switch(instruct.command)
     {
     case 0:
-        sprintf(output, "%d. forward %d", index+1, instruct.argument);
+        if(instruct.argument == 0xFFFF)
+            sprintf(output, "%d. forward", index+1);
+        else
+            sprintf(output, "%d. forward %d", index+1, instruct.argument );
         putsUart0(output);
         break;
         //putsUart0()
     case 1:
-        sprintf(output, "%d. reverse %d", index+1, instruct.argument);
+        if(instruct.argument == 0xFFFF)
+            sprintf(output, "%d. reverse", index+1);
+        else
+            sprintf(output, "%d. reverse %d", index+1, instruct.argument);
         putsUart0(output);
         break;
     case 2:
@@ -493,7 +511,10 @@ void comm2str(instruction instruct, int index)
         putsUart0(output);
         break;
     case 4:
-        sprintf(output, "%d. wait %d", index+1, instruct.argument);
+        if(instruct.argument == 0x1111)
+            sprintf(output, "%d. wait pb", index+1);
+        else if(instruct.argument == 0x2222)
+            sprintf(output, "%d. wait distance %d", index+1, instruct.subcommand);
         putsUart0(output);
         break;
     case 5:
@@ -684,6 +705,17 @@ void rb_run( instruction instruct )
 	return;
 }
 
+void pathFind()
+{
+    rb_wait(0x1111, 0);
+    while(1)
+    {
+        rb_forward(-1);
+        wait_distance(30);
+        rb_cwRotate(90);
+    }
+}
+
 //-----------------------------------------------------------------------------
 // Main
 //-----------------------------------------------------------------------------
@@ -701,6 +733,7 @@ int main(void)
     SLEEP_PIN = 1;
 	
 	uint8_t i;
+	//pathFind();
 
     while(true)
     {
