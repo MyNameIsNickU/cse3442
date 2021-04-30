@@ -126,7 +126,7 @@ void initHw()
 	TIMER1_CTL_R &= ~TIMER_CTL_TAEN;
 	TIMER1_CFG_R = 0;
 	TIMER1_TAMR_R = 0x2;
-	TIMER1_TAMR_R |= TIMER1_TAMR_TACDIR;
+	TIMER1_TAMR_R |= TIMER_TAMR_TACDIR;
 	TIMER1_TAV_R = 0;
 	
 	
@@ -153,6 +153,7 @@ void initHw()
 	
 	GPIO_PORTE_DIR_R |= TRIGGER_MASK;
 	GPIO_PORTE_DIR_R &= ~ECHO_MASK;
+	GPIO_PORTE_PUR_R |= ECHO_MASK;
 	GPIO_PORTE_DR2R_R |= TRIGGER_MASK;
 	GPIO_PORTE_DEN_R |= TRIGGER_MASK | ECHO_MASK;
 
@@ -617,21 +618,33 @@ void wait_distance( uint32_t input )
 {
 	uint32_t dist;
 	
-	BLUE_LED = 1;
-	
-	while(input < dist)
+	RED_LED = 1;
+	ECHO_PIN = 0;
+
+	do
 	{
-		TIMER1_TAV_R = 0;
+	    TIMER1_TAV_R = 0;
+
 		TRIGGER_PIN = 1;
-		waitMicrosecond(10);
+		waitMicrosecond(20);
 		TRIGGER_PIN = 0;
-	
+
+		while( ECHO_PIN == 0 );
 		TIMER1_CTL_R |= TIMER_CTL_TAEN;
-		while( ECHO_PIN );
+
+		while( ECHO_PIN )
 		TIMER1_CTL_R &= ~TIMER_CTL_TAEN;
 		dist = TIMER1_TAV_R / 1000000 / 58;
-	}
+	} while(input < dist);
 	
+	char s[5];
+	sprintf(s, "%d\n", dist);
+	putsUart0(s);
+	BLUE_LED = 1;
+	GREEN_LED = 1;
+	waitMicrosecond(1000000);
+	RED_LED = 0;
+	GREEN_LED = 0;
 	BLUE_LED = 0;
 	return;
 }
