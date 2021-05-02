@@ -522,7 +522,7 @@ void comm2str(instruction instruct, int index)
         putsUart0(output);
         break;
     case 6:
-        sprintf(output, "%d. stop %d", index+1, instruct.argument);
+        sprintf(output, "%d. stop", index+1);
         putsUart0(output);
         break;
     }
