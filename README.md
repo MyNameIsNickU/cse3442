@@ -2,8 +2,9 @@
 A.K.A. THE IRON GIANT
 
 
+--------
 Introduction
-----------------------------------------------
+--------------
 This was a semester long project designed to exercise concepts and skills used in embedded systems; these concepts and skills include, but are not limited to:
 -Utilizing the functionality of the TIVA TM4C123GXL Evaluation Kit with the TM4C123GH6PM Microcontroller.
 -Odometry measurements for the robot’s wheels using edge timers controlled by the TIVA board.
@@ -13,8 +14,10 @@ This was a semester long project designed to exercise concepts and skills used i
 -Using the TIVA board’s GPIO pins for each of these devices for numerous different functions (e.g., inputs, PWM outputs, LEDs for debugging)
 -Writing a CLI to communicate with each of these devices using the Uart0 function on the TIVA board.
  
+--------------------------------------------------
 Theory of Operation
------------------------------------------------------
+-------------------------------------------------
+
 Robot Movement and Odometry
 •	The TIVA Board in this project is configured to run at a clock rate of 40 MHz.
 •	The initialization of the board occurs first, enabling the clock for all necessary pins, PWM motors, and timers for triggering and counting.
